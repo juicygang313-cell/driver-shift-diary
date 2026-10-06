@@ -96,6 +96,15 @@
     return { status: res.status, body: await res.json() };
   };
 
+  // GET paths only: any non-2xx response is an error (api() above keeps non-2xx
+  // bodies because the submit handler needs the 409/422 details).
+  const getJson = async (path) => {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  };
+  const reasonOf = (err) => (/^HTTP \d+$/.test(err?.message) ? err.message : "нет связи с сервером");
+
   // All data goes into the DOM via textContent — never innerHTML.
   const renderDays = (days) => {
     const box = $("days");
@@ -123,19 +132,26 @@
     setText("s-card", `${money(s.by_payment.card.amount)} · ${s.by_payment.card.count}`);
   };
 
-  const renderTrips = (trips) => {
+  // A single full-width row in the trips table: empty state and load errors.
+  const renderTableMessage = (text) => {
     const tbody = $("trips");
     tbody.replaceChildren();
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 4;
+    td.className = "empty";
+    td.textContent = text;
+    tr.append(td);
+    tbody.append(tr);
+  };
+
+  const renderTrips = (trips) => {
+    const tbody = $("trips");
     if (trips.length === 0) {
-      const tr = document.createElement("tr");
-      const td = document.createElement("td");
-      td.colSpan = 4;
-      td.className = "empty";
-      td.textContent = "Нет поездок";
-      tr.append(td);
-      tbody.append(tr);
+      renderTableMessage("Нет поездок");
       return;
     }
+    tbody.replaceChildren();
     for (const t of trips) {
       const tr = document.createElement("tr");
       const cells = [
@@ -155,26 +171,34 @@
   };
 
   const loadDays = async () => {
-    const { body } = await api("/api/days");
-    renderDays(body);
+    const days = await getJson("/api/days");
+    renderDays(days);
     markActiveDay();
-    return body;
+    return days;
   };
 
+  // Fetch first; only a successful load moves `current` and the date input.
   const show = async (day) => {
+    let trips, summary;
+    try {
+      [trips, summary] = await Promise.all([
+        getJson(`/api/trips?date=${day}`),
+        getJson(`/api/summary?date=${day}`),
+      ]);
+    } catch (err) {
+      $("date").value = current ?? "";
+      renderTableMessage(`Не удалось загрузить день (${reasonOf(err)})`);
+      return;
+    }
     current = day;
     $("date").value = day;
     markActiveDay();
-    const [trips, summary] = await Promise.all([
-      api(`/api/trips?date=${day}`),
-      api(`/api/summary?date=${day}`),
-    ]);
-    renderTrips(trips.body);
-    renderSummary(summary.body);
+    renderTrips(trips);
+    renderSummary(summary);
   };
 
-  $("prev").addEventListener("click", () => show(shiftDay(current, -1)));
-  $("next").addEventListener("click", () => show(shiftDay(current, 1)));
+  $("prev").addEventListener("click", () => show(shiftDay(current ?? localToday(), -1)));
+  $("next").addEventListener("click", () => show(shiftDay(current ?? localToday(), 1)));
   $("date").addEventListener("change", (e) => { if (e.target.value) show(e.target.value); });
 
   // datetime-local gives "YYYY-MM-DDTHH:MM" (or with :SS); add seconds and the offset.
@@ -194,35 +218,47 @@
     };
     const msg = $("form-msg");
     msg.className = "msg";
-    const res = await api("/api/trips", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 201 || res.status === 200) {
-      msg.classList.add("ok");
-      msg.textContent = res.status === 201 ? "Поездка добавлена" : "Такая поездка уже есть";
-      if (res.status === 201) form.reset();
-      await loadDays();
-      await show(res.body.start.slice(0, 10));
-    } else if (res.status === 422) {
-      const err = res.body.detail?.[0];
-      msg.classList.add("error");
-      const field = err?.loc?.at(-1);
-      msg.textContent = !err ? "Ошибка валидации"
-        : (field && field !== "body") ? `${field}: ${err.msg}` : err.msg;
-    } else if (res.status === 409) {
-      msg.classList.add("error");
-      msg.textContent = "Поездка с таким id уже есть, но с другими данными";
-    } else {
-      msg.classList.add("error");
-      msg.textContent = `Ошибка ${res.status}`;
+    msg.textContent = "";
+    try {
+      const res = await api("/api/trips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.status === 201 || res.status === 200) {
+        msg.classList.add("ok");
+        msg.textContent = res.status === 201 ? "Поездка добавлена" : "Такая поездка уже есть";
+        if (res.status === 201) form.reset();
+        await loadDays();
+        await show(res.body.start.slice(0, 10));
+      } else if (res.status === 422) {
+        const err = res.body.detail?.[0];
+        msg.classList.add("error");
+        const field = err?.loc?.at(-1);
+        msg.textContent = !err ? "Ошибка валидации"
+          : (field && field !== "body") ? `${field}: ${err.msg}` : err.msg;
+      } else if (res.status === 409) {
+        msg.classList.add("error");
+        msg.textContent = "Поездка с таким id уже есть, но с другими данными";
+      } else {
+        msg.classList.add("error");
+        msg.textContent = `Ошибка ${res.status}`;
+      }
+    } catch {
+      // Network failure or a non-JSON body (res.json() rejects). Reset the class
+      // too, so a success class set above cannot colour this error green.
+      msg.className = "msg error";
+      msg.textContent = "Нет связи с сервером";
     }
   });
 
   (async () => {
-    const days = await loadDays();
-    await show(days.length ? days[days.length - 1].date : localToday());
+    try {
+      const days = await loadDays();
+      await show(days.length ? days[days.length - 1].date : localToday());
+    } catch (err) {
+      renderTableMessage(`Не удалось загрузить дни (${reasonOf(err)})`);
+    }
   })();
 })();
 </script>

@@ -28,6 +28,8 @@ def test_id_is_optional_and_null_means_absent():
         {"amount": float("inf")},
         {"amount": "2400.555"},
         {"amount": "2400,50"},
+        {"amount": "1e-1000027", "commission": 0},  # underflows past decimal_places
+        {"commission": "1e-1000027"},
         {"commission": -1},
         {"commission": 2401},
         {"end": "2026-10-01T08:10:00+05:00"},  # end == start

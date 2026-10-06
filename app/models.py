@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Annotated, Literal
 
 from pydantic import (
+    AfterValidator,
     AwareDatetime,
     BaseModel,
     ConfigDict,
@@ -29,8 +30,21 @@ def _money_to_json(value: Decimal) -> int | float:
 
 _MoneyJson = PlainSerializer(_money_to_json, return_type=int | float, when_used="json")
 
+
+def _whole_kopecks(value: Decimal) -> Decimal:
+    """Reject sub-kopeck amounts that slip past decimal_places via exponent underflow."""
+    if value != value.quantize(Decimal("0.01")):
+        raise ValueError("must have at most 2 decimal places")
+    return value
+
+
 # Exact decimal money: up to 2 decimal places, no inf/nan. Sums stay exact.
-Money = Annotated[Decimal, Field(max_digits=12, decimal_places=2), _MoneyJson]
+Money = Annotated[
+    Decimal,
+    Field(max_digits=12, decimal_places=2),
+    AfterValidator(_whole_kopecks),
+    _MoneyJson,
+]
 # Totals in summaries: same serialization, no digit limit.
 MoneyTotal = Annotated[Decimal, _MoneyJson]
 

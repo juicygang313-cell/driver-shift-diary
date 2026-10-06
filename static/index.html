@@ -3,92 +3,249 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f97316">
 <title>Дневник смен водителя</title>
 <style>
-  :root { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1a1a1a; }
-  body { margin: 0 auto; padding: 16px; max-width: 900px; background: #f6f7f9; }
-  h1 { font-size: 1.4rem; margin: 0 0 12px; }
-  h2 { font-size: 1.05rem; margin: 20px 0 8px; }
-  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-  button { padding: 6px 12px; border: 1px solid #cfd3da; border-radius: 6px; background: #fff; cursor: pointer; font: inherit; }
-  button:hover { background: #eef1f5; }
-  input, select { padding: 6px 8px; border: 1px solid #cfd3da; border-radius: 6px; font: inherit; background: #fff; }
-  .days { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
-  .days button.active { background: #1f6feb; color: #fff; border-color: #1f6feb; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 16px; }
-  .card { background: #fff; border: 1px solid #e3e6eb; border-radius: 8px; padding: 10px 12px; }
-  .card .label { font-size: .8rem; color: #666; }
-  .card .value { font-size: 1.25rem; font-weight: 600; margin-top: 2px; }
-  table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e3e6eb; border-radius: 8px; overflow: hidden; }
-  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eef0f3; }
-  th { background: #f0f2f5; font-weight: 600; font-size: .85rem; }
-  th.num, td.num { text-align: right; }
-  td.empty { padding: 16px; color: #666; text-align: center; }
-  form { background: #fff; border: 1px solid #e3e6eb; border-radius: 8px; padding: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
-  form label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; }
-  form .actions { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .msg { font-size: .9rem; }
-  .msg.error { color: #b42318; }
-  .msg.ok { color: #067647; }
+  :root {
+    --bg: #fff7ed; --ink: #1c1917; --muted: #78716c; --line: #f5f5f4;
+    --accent: #f97316; --accent-2: #fbbf24; --cash: #16a34a; --card: #7c3aed;
+    --radius: 20px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); }
+  body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  body.locked { overflow: hidden; }
+  button { font: inherit; cursor: pointer; }
+  [hidden] { display: none !important; }
+
+  .app { max-width: 480px; margin: 0 auto; min-height: 100vh; padding-bottom: 110px; }
+
+  /* Hero: date, net pay, totals */
+  .hero {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff; padding: 18px 20px 24px; border-radius: 0 0 32px 32px;
+    box-shadow: 0 12px 32px rgba(249, 115, 22, .35);
+  }
+  .hero-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .nav {
+    width: 42px; height: 42px; border: 0; border-radius: 50%; color: #fff;
+    background: rgba(255, 255, 255, .22); font-size: 1.5rem; line-height: 1;
+  }
+  .nav:active { background: rgba(255, 255, 255, .4); }
+  .hero-date { text-align: center; }
+  .hero-day { font-size: 1.15rem; font-weight: 800; }
+  .hero-wd { font-size: .8rem; opacity: .9; text-transform: capitalize; }
+  #date {
+    display: block; margin: 6px auto 0; border: 0; border-radius: 999px; padding: 4px 10px;
+    background: rgba(255, 255, 255, .28); color: #fff; font: inherit; font-size: .8rem;
+    color-scheme: dark;
+  }
+  .hero-net-label { margin-top: 20px; font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; opacity: .9; }
+  .hero-net { font-size: 2.8rem; font-weight: 900; letter-spacing: -.03em; line-height: 1.05; }
+  .hero-sub { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px; font-size: .85rem; opacity: .95; }
+  .hero-sub b { font-weight: 800; }
+
+  /* Day chips */
+  .days { display: flex; gap: 8px; overflow-x: auto; padding: 16px 20px 6px; scrollbar-width: none; }
+  .days::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px; border: 0; border-radius: 999px;
+    padding: 9px 14px; background: #fff; color: var(--ink); font-weight: 700;
+    box-shadow: 0 2px 10px rgba(28, 25, 23, .08);
+  }
+  .chip .n { background: #ffedd5; color: #c2410c; border-radius: 999px; padding: 2px 8px; font-size: .72rem; }
+  .chip.active { background: var(--ink); color: #fff; }
+  .chip.active .n { background: var(--accent); color: #fff; }
+
+  /* Cash / card tiles */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 20px 4px; }
+  .tile { border-radius: var(--radius); padding: 14px 16px; color: #fff; box-shadow: 0 8px 20px rgba(28, 25, 23, .12); }
+  .tile.cash { background: var(--cash); }
+  .tile.card { background: var(--card); }
+  .tile-label { font-size: .78rem; opacity: .9; }
+  .tile-value { font-size: 1.4rem; font-weight: 900; margin-top: 4px; letter-spacing: -.02em; }
+  .tile-sub { font-size: .75rem; opacity: .85; margin-top: 2px; }
+
+  /* Trip cards */
+  .section-title { margin: 18px 20px 10px; font-size: .78rem; font-weight: 800; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+  .trips { list-style: none; margin: 0; padding: 0 20px; display: flex; flex-direction: column; gap: 10px; }
+  .trip {
+    position: relative; overflow: hidden; display: flex; align-items: center; gap: 12px;
+    background: #fff; border-radius: 18px; padding: 12px 16px 12px 20px;
+    box-shadow: 0 4px 16px rgba(28, 25, 23, .06);
+  }
+  .trip::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; background: var(--stripe, var(--muted)); }
+  .trip.cash { --stripe: var(--cash); }
+  .trip.card { --stripe: var(--card); }
+  .trip-time { font-weight: 800; font-size: 1.05rem; }
+  .trip-pay { font-size: .75rem; color: var(--muted); margin-top: 2px; }
+  .trip-amount { margin-left: auto; text-align: right; }
+  .trip-amount b { display: block; font-size: 1.1rem; font-weight: 900; }
+  .trip-amount small { color: var(--muted); font-size: .72rem; }
+  .empty { text-align: center; color: var(--muted); padding: 30px 12px; font-size: .95rem; }
+  .empty .big { display: block; font-size: 2.2rem; margin-bottom: 6px; }
+
+  /* Floating add button */
+  .fab {
+    position: fixed; bottom: 24px; right: max(20px, calc(50% - 220px)); z-index: 10;
+    width: 62px; height: 62px; border: 0; border-radius: 50%; background: var(--ink); color: #fff;
+    font-size: 2.1rem; line-height: 1; box-shadow: 0 12px 28px rgba(28, 25, 23, .35);
+  }
+  .fab:active { transform: scale(.96); }
+
+  /* Bottom sheet with the form */
+  .backdrop { position: fixed; inset: 0; z-index: 20; background: rgba(28, 25, 23, .45); }
+  .sheet {
+    position: fixed; z-index: 21; left: 50%; bottom: 0; transform: translateX(-50%);
+    width: 100%; max-width: 480px; max-height: 92vh; overflow-y: auto; overflow-x: hidden;
+    background: #fff; border-radius: 28px 28px 0 0; padding: 12px 20px 28px;
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, .22);
+  }
+  .sheet-handle { width: 44px; height: 5px; border-radius: 3px; background: #e7e5e4; margin: 0 auto 14px; }
+  .sheet h2 { margin: 0 0 14px; font-size: 1.25rem; font-weight: 900; }
+  .sheet form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .sheet label { display: flex; flex-direction: column; gap: 5px; font-size: .78rem; font-weight: 700; color: var(--muted); }
+  .sheet input, .sheet select {
+    width: 100%; min-width: 0; border: 2px solid var(--line); background: #fafaf9; border-radius: 12px;
+    padding: 10px 12px; font: inherit; font-size: .95rem; color: var(--ink);
+  }
+  .sheet input:focus, .sheet select:focus { outline: 0; border-color: var(--accent); background: #fff; }
+  .wide { grid-column: 1 / -1; }
+  .primary { grid-column: 1 / -1; border: 0; border-radius: 14px; padding: 14px; background: var(--accent); color: #fff; font-weight: 800; font-size: 1rem; }
+  .primary:active { filter: brightness(.95); }
+  .ghost { grid-column: 1 / -1; border: 0; background: transparent; color: var(--muted); padding: 6px; font-weight: 600; }
+  .msg { grid-column: 1 / -1; min-height: 1.3em; font-size: .9rem; font-weight: 600; }
+  .msg.error { color: #b91c1c; }
+  .msg.ok { color: #15803d; }
+
+  /* Toast for success messages */
+  .toast {
+    position: fixed; z-index: 30; left: 50%; top: 16px; transform: translateX(-50%);
+    background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 999px;
+    font-weight: 700; box-shadow: 0 10px 24px rgba(0, 0, 0, .25);
+    opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+
+  /* Wide screens: two columns — summary on the left, trips on the right */
+  @media (min-width: 900px) {
+    .app {
+      max-width: 1120px; padding: 28px 28px 48px; display: grid; column-gap: 32px;
+      grid-template-columns: 400px minmax(0, 1fr);
+      grid-template-areas: "hero trips" "days trips" "split trips" ". trips";
+      align-content: start;
+    }
+    .hero { grid-area: hero; border-radius: 28px; padding: 22px 24px 26px; }
+    .hero-net { font-size: 3.2rem; }
+    .days { grid-area: days; padding: 18px 0 4px; flex-wrap: wrap; overflow: visible; }
+    .split { grid-area: split; padding: 12px 0 0; }
+    .trips-area { grid-area: trips; }
+    .section-title { margin: 8px 0 12px; }
+    .trips { padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); align-content: start; }
+    .trips .empty { grid-column: 1 / -1; }
+    .fab { right: max(24px, calc(50% - 532px)); bottom: 32px; }
+    .sheet {
+      bottom: auto; top: 50%; transform: translate(-50%, -50%);
+      border-radius: 28px; padding: 24px 28px 28px; max-height: 90vh;
+    }
+    .sheet-handle { display: none; }
+  }
 </style>
 </head>
 <body>
-<h1>Дневник смен водителя</h1>
+<main class="app">
+  <header class="hero">
+    <div class="hero-top">
+      <button id="prev" class="nav" type="button" aria-label="Предыдущий день">‹</button>
+      <div class="hero-date">
+        <div id="hero-day" class="hero-day">Дневник смен водителя</div>
+        <div id="hero-wd" class="hero-wd">загрузка…</div>
+        <input id="date" type="date" aria-label="Выбрать дату">
+      </div>
+      <button id="next" class="nav" type="button" aria-label="Следующий день">›</button>
+    </div>
+    <div class="hero-net-label">На руки</div>
+    <div id="s-net" class="hero-net">—</div>
+    <div class="hero-sub">
+      <span>Выручка <b id="s-revenue">—</b></span>
+      <span>Комиссия <b id="s-commission">—</b></span>
+      <span>Поездок <b id="s-count">—</b></span>
+    </div>
+  </header>
 
-<div class="toolbar">
-  <button id="prev" type="button" title="Предыдущий день">←</button>
-  <input id="date" type="date">
-  <button id="next" type="button" title="Следующий день">→</button>
-</div>
-<div id="days" class="days"></div>
+  <nav id="days" class="days" aria-label="Дни с поездками"></nav>
 
-<div class="cards">
-  <div class="card"><div class="label">Поездок</div><div class="value" id="s-count">–</div></div>
-  <div class="card"><div class="label">Выручка</div><div class="value" id="s-revenue">–</div></div>
-  <div class="card"><div class="label">Комиссия</div><div class="value" id="s-commission">–</div></div>
-  <div class="card"><div class="label">На руки</div><div class="value" id="s-net">–</div></div>
-  <div class="card"><div class="label">Наличные</div><div class="value" id="s-cash">–</div></div>
-  <div class="card"><div class="label">Карта</div><div class="value" id="s-card">–</div></div>
-</div>
+  <section class="split">
+    <div class="tile cash">
+      <div class="tile-label">Наличные</div>
+      <div id="s-cash" class="tile-value">—</div>
+      <div id="s-cash-n" class="tile-sub">—</div>
+    </div>
+    <div class="tile card">
+      <div class="tile-label">Карта</div>
+      <div id="s-card" class="tile-value">—</div>
+      <div id="s-card-n" class="tile-sub">—</div>
+    </div>
+  </section>
 
-<table>
-  <thead><tr><th>Время</th><th class="num">Сумма</th><th>Оплата</th><th class="num">Комиссия</th></tr></thead>
-  <tbody id="trips"></tbody>
-</table>
+  <section class="trips-area">
+    <h2 class="section-title">Поездки</h2>
+    <ul id="trips" class="trips"></ul>
+  </section>
+</main>
 
-<h2>Добавить поездку</h2>
-<form id="add">
-  <label>Начало <input name="start" type="datetime-local" required></label>
-  <label>Окончание <input name="end" type="datetime-local" required></label>
-  <label>Часовой пояс <input name="tz" value="+05:00" pattern="[+\-]\d{2}:\d{2}" required></label>
-  <label>Сумма <input name="amount" type="number" step="0.01" min="0.01" required></label>
-  <label>Оплата
-    <select name="payment"><option value="cash">наличные</option><option value="card">карта</option></select>
-  </label>
-  <label>Комиссия <input name="commission" type="number" step="0.01" min="0" value="0" required></label>
-  <div class="actions">
-    <button type="submit">Добавить</button>
-    <span id="form-msg" class="msg"></span>
-  </div>
-</form>
+<button id="open-sheet" class="fab" type="button" aria-label="Добавить поездку">+</button>
+<div id="backdrop" class="backdrop" hidden></div>
+<section id="sheet" class="sheet" hidden aria-label="Новая поездка">
+  <div class="sheet-handle"></div>
+  <h2>Новая поездка</h2>
+  <form id="add">
+    <label>Начало <input name="start" type="datetime-local" required></label>
+    <label>Окончание <input name="end" type="datetime-local" required></label>
+    <label>Сумма, ₽ <input name="amount" type="number" step="0.01" min="0.01" required></label>
+    <label>Комиссия, ₽ <input name="commission" type="number" step="0.01" min="0" value="0" required></label>
+    <label>Оплата
+      <select name="payment"><option value="cash">наличные</option><option value="card">карта</option></select>
+    </label>
+    <label>Часовой пояс <input name="tz" value="+05:00" pattern="[+\-]\d{2}:\d{2}" title="Формат ±ЧЧ:ММ, например +05:00" required></label>
+    <div id="form-msg" class="msg" role="status" aria-live="polite"></div>
+    <button type="submit" class="primary">Добавить поездку</button>
+    <button type="button" id="close-sheet" class="ghost">Закрыть</button>
+  </form>
+</section>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
   const PAYMENT_LABEL = { cash: "наличные", card: "карта" };
+  const MONTHS_SHORT = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+  const MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+  const WEEKDAYS = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
   let current = null; // "YYYY-MM-DD"
+  let toastTimer = null;
 
   const pad = (n) => String(n).padStart(2, "0");
   const fmtDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const localToday = () => fmtDate(new Date());
+  const parts = (iso) => iso.split("-").map(Number);
   const shiftDay = (iso, delta) => {
-    const [y, m, d] = iso.split("-").map(Number);
+    const [y, m, d] = parts(iso);
     return fmtDate(new Date(y, m - 1, d + delta));
   };
+  const chipLabel = (iso) => { const [, m, d] = parts(iso); return `${d} ${MONTHS_SHORT[m - 1]}`; };
+  const longDate = (iso) => { const [y, m, d] = parts(iso); return `${d} ${MONTHS_GEN[m - 1]} ${y}`; };
+  const weekday = (iso) => { const [y, m, d] = parts(iso); return WEEKDAYS[new Date(y, m - 1, d).getDay()]; };
   // Time is sliced from the ISO string on purpose: `new Date()` would shift it
   // into the browser's time zone, but the trip's own offset is what the driver saw.
   const hhmm = (iso) => iso.slice(11, 16);
   const money = (n) => `${Number(n).toLocaleString("ru-RU")} ₽`;
+  const plural = (n, [one, few, many]) => {
+    const a = Math.abs(n) % 100, b = a % 10;
+    const word = (a > 10 && a < 20) ? many : (b > 1 && b < 5) ? few : (b === 1) ? one : many;
+    return `${n} ${word}`;
+  };
+  const trips = (n) => plural(n, ["поездка", "поездки", "поездок"]);
   const setText = (id, text) => { $(id).textContent = text; };
 
   const api = async (path, options) => {
@@ -112,61 +269,81 @@
     for (const d of days) {
       const b = document.createElement("button");
       b.type = "button";
+      b.className = "chip";
       b.dataset.date = d.date;
-      b.textContent = `${d.date} (${d.trips_count})`;
+      const label = document.createElement("span");
+      label.textContent = chipLabel(d.date);
+      const n = document.createElement("span");
+      n.className = "n";
+      n.textContent = d.trips_count;
+      b.append(label, n);
       b.addEventListener("click", () => show(d.date));
       box.append(b);
     }
   };
 
   const markActiveDay = () => {
-    for (const b of $("days").children) b.classList.toggle("active", b.dataset.date === current);
+    for (const b of $("days").children) {
+      const active = b.dataset.date === current;
+      b.classList.toggle("active", active);
+      if (active) b.scrollIntoView({ block: "nearest", inline: "center" });
+    }
   };
 
   const renderSummary = (s) => {
-    setText("s-count", s.trips_count);
+    setText("s-net", money(s.net));
     setText("s-revenue", money(s.revenue));
     setText("s-commission", money(s.commission));
-    setText("s-net", money(s.net));
-    setText("s-cash", `${money(s.by_payment.cash.amount)} · ${s.by_payment.cash.count}`);
-    setText("s-card", `${money(s.by_payment.card.amount)} · ${s.by_payment.card.count}`);
+    setText("s-count", s.trips_count);
+    setText("s-cash", money(s.by_payment.cash.amount));
+    setText("s-cash-n", trips(s.by_payment.cash.count));
+    setText("s-card", money(s.by_payment.card.amount));
+    setText("s-card-n", trips(s.by_payment.card.count));
   };
 
-  // A single full-width row in the trips table: empty state and load errors.
-  const renderTableMessage = (text) => {
-    const tbody = $("trips");
-    tbody.replaceChildren();
-    const tr = document.createElement("tr");
-    const td = document.createElement("td");
-    td.colSpan = 4;
-    td.className = "empty";
-    td.textContent = text;
-    tr.append(td);
-    tbody.append(tr);
+  // A single full-width item in the trips list: empty state and load errors.
+  const renderListMessage = (text, icon) => {
+    const list = $("trips");
+    list.replaceChildren();
+    const li = document.createElement("li");
+    li.className = "empty";
+    if (icon) {
+      const big = document.createElement("span");
+      big.className = "big";
+      big.textContent = icon;
+      li.append(big);
+    }
+    li.append(document.createTextNode(text));
+    list.append(li);
   };
 
-  const renderTrips = (trips) => {
-    const tbody = $("trips");
-    if (trips.length === 0) {
-      renderTableMessage("Нет поездок");
+  const renderTrips = (items) => {
+    if (items.length === 0) {
+      renderListMessage("Поездок нет", "🚕");
       return;
     }
-    tbody.replaceChildren();
-    for (const t of trips) {
-      const tr = document.createElement("tr");
-      const cells = [
-        [`${hhmm(t.start)}–${hhmm(t.end)}`, ""],
-        [money(t.amount), "num"],
-        [PAYMENT_LABEL[t.payment] ?? t.payment, ""],
-        [money(t.commission), "num"],
-      ];
-      for (const [text, cls] of cells) {
-        const td = document.createElement("td");
-        td.textContent = text;
-        if (cls) td.className = cls;
-        tr.append(td);
-      }
-      tbody.append(tr);
+    const list = $("trips");
+    list.replaceChildren();
+    for (const t of items) {
+      const li = document.createElement("li");
+      li.className = `trip ${t.payment}`;
+      const left = document.createElement("div");
+      const time = document.createElement("div");
+      time.className = "trip-time";
+      time.textContent = `${hhmm(t.start)} – ${hhmm(t.end)}`;
+      const pay = document.createElement("div");
+      pay.className = "trip-pay";
+      pay.textContent = PAYMENT_LABEL[t.payment] ?? t.payment;
+      left.append(time, pay);
+      const right = document.createElement("div");
+      right.className = "trip-amount";
+      const amount = document.createElement("b");
+      amount.textContent = money(t.amount);
+      const fee = document.createElement("small");
+      fee.textContent = `комиссия ${money(t.commission)}`;
+      right.append(amount, fee);
+      li.append(left, right);
+      list.append(li);
     }
   };
 
@@ -179,27 +356,54 @@
 
   // Fetch first; only a successful load moves `current` and the date input.
   const show = async (day) => {
-    let trips, summary;
+    let list, summary;
     try {
-      [trips, summary] = await Promise.all([
+      [list, summary] = await Promise.all([
         getJson(`/api/trips?date=${day}`),
         getJson(`/api/summary?date=${day}`),
       ]);
     } catch (err) {
       $("date").value = current ?? "";
-      renderTableMessage(`Не удалось загрузить день (${reasonOf(err)})`);
+      renderListMessage(`Не удалось загрузить день (${reasonOf(err)})`);
       return;
     }
     current = day;
     $("date").value = day;
+    setText("hero-day", longDate(day));
+    setText("hero-wd", weekday(day));
     markActiveDay();
-    renderTrips(trips);
+    renderTrips(list);
     renderSummary(summary);
   };
 
   $("prev").addEventListener("click", () => show(shiftDay(current ?? localToday(), -1)));
   $("next").addEventListener("click", () => show(shiftDay(current ?? localToday(), 1)));
   $("date").addEventListener("change", (e) => { if (e.target.value) show(e.target.value); });
+
+  // Bottom sheet
+  const openSheet = () => {
+    $("sheet").hidden = false;
+    $("backdrop").hidden = false;
+    document.body.classList.add("locked");
+    $("add").elements.start.focus();
+  };
+  const closeSheet = () => {
+    $("sheet").hidden = true;
+    $("backdrop").hidden = true;
+    document.body.classList.remove("locked");
+  };
+  $("open-sheet").addEventListener("click", openSheet);
+  $("close-sheet").addEventListener("click", closeSheet);
+  $("backdrop").addEventListener("click", closeSheet);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("sheet").hidden) closeSheet(); });
+
+  const toast = (text) => {
+    const t = $("toast");
+    t.textContent = text;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+  };
 
   // datetime-local gives "YYYY-MM-DDTHH:MM" (or with :SS); add seconds and the offset.
   const withOffset = (local, tz) => (local.length === 16 ? `${local}:00` : local) + tz;
@@ -226,9 +430,9 @@
         body: JSON.stringify(body),
       });
       if (res.status === 201 || res.status === 200) {
-        msg.classList.add("ok");
-        msg.textContent = res.status === 201 ? "Поездка добавлена" : "Такая поездка уже есть";
         if (res.status === 201) form.reset();
+        closeSheet();
+        toast(res.status === 201 ? "Поездка добавлена" : "Такая поездка уже есть");
         await loadDays();
         await show(res.body.start.slice(0, 10));
       } else if (res.status === 422) {
@@ -257,7 +461,8 @@
       const days = await loadDays();
       await show(days.length ? days[days.length - 1].date : localToday());
     } catch (err) {
-      renderTableMessage(`Не удалось загрузить дни (${reasonOf(err)})`);
+      setText("hero-wd", "");
+      renderListMessage(`Не удалось загрузить дни (${reasonOf(err)})`);
     }
   })();
 })();

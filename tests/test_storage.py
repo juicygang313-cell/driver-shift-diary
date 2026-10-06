@@ -14,11 +14,6 @@ def tin(**overrides) -> TripIn:
     return TripIn.model_validate(payload(**overrides))
 
 
-@pytest.fixture
-def storage(tmp_path):
-    return TripStorage(tmp_path / "trips.json", seed=None)
-
-
 def test_add_creates_and_persists(storage, tmp_path):
     trip, status = storage.add(tin(id="t1"))
     assert status == "created"

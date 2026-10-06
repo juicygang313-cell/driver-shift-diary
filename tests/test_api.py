@@ -118,3 +118,10 @@ def test_main_builds_app_from_trips_file_env(tmp_path, monkeypatch):
     monkeypatch.setenv("TRIPS_FILE", str(path))
     main = importlib.reload(importlib.import_module("app.main"))
     assert TestClient(main.app).get("/api/days").json() == []
+
+
+def test_index_serves_client(client):
+    res = client.get("/")
+    assert res.status_code == 200
+    assert "text/html" in res.headers["content-type"]
+    assert "Дневник смен водителя" in res.text

@@ -11,13 +11,13 @@ import threading
 from pathlib import Path
 from typing import Literal
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import TypeAdapter
 
 from app.models import Trip, TripIn
 
-PACKAGE_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_TRIPS_FILE = PACKAGE_ROOT / "data" / "trips.json"
-SEED_FILE = PACKAGE_ROOT / "data" / "seed.json"
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_TRIPS_FILE = PROJECT_ROOT / "data" / "trips.json"
+SEED_FILE = PROJECT_ROOT / "data" / "seed.json"
 
 AddStatus = Literal["created", "existing", "conflict"]
 
@@ -47,7 +47,7 @@ class TripStorage:
             return []
         try:
             return _TRIPS.validate_json(self._path.read_bytes())
-        except (ValidationError, ValueError) as exc:
+        except ValueError as exc:
             raise StorageError(f"Invalid trips file {self._path}: {exc}") from exc
 
     def all(self) -> list[Trip]:
